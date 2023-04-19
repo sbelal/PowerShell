@@ -169,7 +169,7 @@ function Unhide-File {
         [switch]$simulate
     )
 
-    if($FilePath.ToLower().EndsWith(".txt"))
+    if($FilePath.ToLower().EndsWith(".txt") -or $FilePath.ToLower().EndsWith("\manifest.json"))
     {
         return
     }
@@ -204,9 +204,99 @@ function Unhide-File {
     }
 }
 
-
-
 function Hide-Folder {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FolderPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        [switch]$simulate
+    )
+    
+    $FolderPath = (Resolve-Path $FolderPath).Path.TrimEnd("\")
+    $folderPaths = @()
+    $folders = Get-ChildItem -Path $FolderPath -Directory -Recurse | Sort-Object FullName
+    foreach ($folder in $folders) {
+        $folderPaths += $folder.FullName
+    }
+
+    $manifest = @()
+    For ($i=$folderPaths.Length-1; $i -ge 0; $i--) {
+        $currentFolderPath = $folderPaths[$i]
+        $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
+        $currentFolderName = Split-Path -Path $currentFolderPath -Leaf        
+        $encryptedOriginalName = Encrypt-FileName -FileName $currentFolderName -Key $Key
+        $newFolderName = "$($i)".Trim()
+        $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
+        $newRelativePath = $newPathName.Replace($FolderPath,"")
+        $relativePath = $currentFolderPath.Replace($FolderPath,"")
+        Write-Host "Renaming folder [$relativePath] to [$newRelativePath]"
+        $manifest += $(Encrypt-AES -PlainText $relativePath -Key $Key -KeySize 128)
+    }
+    [array]::Reverse($manifest)
+
+
+    $json = ConvertTo-Json -InputObject $manifest
+    if(!$simulate)
+    {
+        Set-Content -Path $($FolderPath+"\manifest.json") -Value $json -Encoding UTF8
+
+        For ($i=$folderPaths.Length-1; $i -ge 0; $i--) {
+            $currentFolderPath = $folderPaths[$i]
+            $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
+            $newFolderName = "$($i)".Trim()
+            $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
+
+            Rename-Item -Path $currentFolderPath -NewName $i -Force
+        }
+    }
+    
+}
+
+function Unhide-Folder {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FolderPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+        [switch]$simulate
+    )
+    
+    $FolderPath = (Resolve-Path $FolderPath).Path.TrimEnd("\")
+
+    # Read the contents of the JSON file
+    $jsonContent = Get-Content $($FolderPath + "\manifest.json") -Raw
+
+    # Convert the JSON data to a PowerShell object
+    $jsonObject = ConvertFrom-Json $jsonContent
+
+    $i = 0
+    foreach ($encPath in $jsonObject)
+    {
+        $recoveredFolderPathRelative = Decrypt-AES -EncryptedText $encPath -Key $Key -KeySize 128
+        $recoveredFolderPath = Join-Path -Path $FolderPath -ChildPath $recoveredFolderPathRelative
+        $recoveredFolderName = Split-Path -Path $recoveredFolderPath -Leaf
+        $parentFolderPath = Split-Path -Path $recoveredFolderPath -Parent
+        $existingFolderPath = Join-Path -Path $parentFolderPath -ChildPath $i
+        $i++
+        Write-Host "[$existingFolderPath] -->  [$recoveredFolderPath]"
+        
+        if(!$simulate){
+            Rename-Item -Path $existingFolderPath -NewName $recoveredFolderName 
+        }
+    }
+
+    if(!$simulate){
+        Remove-Item -Path $($FolderPath + "\manifest.json") -Force         
+    }    
+}
+
+
+
+
+function Hide-Path {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -217,16 +307,19 @@ function Hide-Folder {
     )
 
     # Get all files in the directory tree
-    $files = Get-ChildItem -Path $Path -File -Exclude "*.txt" -Recurse 
+    $files = Get-ChildItem -Path $Path -File -Recurse 
 
     # Loop through each file and get its file path without the file extension
     foreach ($file in $files) {
         $filePath = $file.FullName
         Hide-File -FilePath $filePath -Key $Key -simulate:$simulate
     }
+
+    Hide-Folder -FolderPath $Path -Key $Key -simulate:$simulate
+
 }
 
-function Unhide-Folder {
+function Unhide-Path {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -242,6 +335,9 @@ function Unhide-Folder {
     # Loop through each file and get its file path without the file extension
     foreach ($file in $files) {
         $filePath = $file.FullName
+        Write-Host "---- $filePath"
         Unhide-File -FilePath $filePath -Key $Key -simulate:$simulate
     }
+
+    Unhide-Folder -FolderPath $Path -Key $Key -simulate:$simulate
 }
