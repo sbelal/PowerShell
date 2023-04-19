@@ -1,3 +1,6 @@
+$ErrorActionPreference = "Stop"
+
+
 # Function to generate a valid AES key from a given input key or password
 function Generate-AESKey {
     param(
@@ -139,22 +142,24 @@ function Hide-File {
             $NewFileNameShort = $NewFileNameShort + ".dat"
             $NewFileNameShortTxtPath = Join-Path -Path (Split-Path $FilePath) -ChildPath $NewFileNameShortTxt            
             $NewFileName = $NewFileNameShort
-        }else{
+        }
+        else {
             $NewFileNameShortTxtPath = ""        
         }
 
         # Rename the input file path with the new file name
-        if($NewFileNameShortTxtPath){
-            if(!$simulate){
+        if ($NewFileNameShortTxtPath) {
+            if (!$simulate) {
                 Set-Content -Path $(Join-Path -Path (Split-Path $FilePath) -ChildPath $NewFileNameShortTxt) -Value $oriNewFileName -Encoding UTF8
             }
             Write-Host "Created '$NewFileNameShortTxt'"
         }
-        if(!$simulate){
+        if (!$simulate) {
             Rename-Item -Path $FilePath -NewName $NewFileName -Force
         }        
         Write-Host "Renamed File ['$FilePath'] to '$NewFileName'."
-    } else {
+    }
+    else {
         Write-Warning "File not found: $FilePath"
     }
 }
@@ -169,8 +174,7 @@ function Unhide-File {
         [switch]$simulate
     )
 
-    if($FilePath.ToLower().EndsWith(".txt") -or $FilePath.ToLower().EndsWith("\manifest.json"))
-    {
+    if ($FilePath.ToLower().EndsWith(".txt") -or $FilePath.ToLower().EndsWith("\manifest.json")) {
         return
     }
             
@@ -181,25 +185,24 @@ function Unhide-File {
         $encryptedTxtFilePath = Join-Path -Path $parentFolderPath -ChildPath $encryptedTxtFileName
         
         $encryptedFileName = (Get-Item $FilePath).BaseName
-        if(Test-Path -Path $encryptedTxtFilePath -PathType Leaf)
-        {
+        if (Test-Path -Path $encryptedTxtFilePath -PathType Leaf) {
             $encryptedFileName = Get-Content -Path $encryptedTxtFilePath -Encoding UTF8 -Raw 
         }
         $encryptedFileNameWithoutExtension = (Get-Item $FilePath).BaseName
 
-        $NewFileName = Decrypt-FileName -EncryptedFileName $($encryptedFileName.Replace(".dat","")) -Key $Key
+        $NewFileName = Decrypt-FileName -EncryptedFileName $($encryptedFileName.Replace(".dat", "")) -Key $Key
         $NewFullPath = Join-Path -Path (Split-Path $FilePath) -ChildPath $NewFileName
         
-        if(!$simulate){
+        if (!$simulate) {
             Rename-Item -Path $FilePath -NewName $NewFileName -Force
-            if(Test-Path -Path $encryptedTxtFilePath -PathType Leaf)
-            {
+            if (Test-Path -Path $encryptedTxtFilePath -PathType Leaf) {
                 Remove-Item -Path $encryptedTxtFilePath -Force 
             }
         }
 
         Write-Host "Recovered [$NewFullPath]"
-    } else {
+    }
+    else {
         Write-Warning "File not found: $FilePath"
     }
 }
@@ -222,15 +225,13 @@ function Hide-Folder {
     }
 
     $manifest = @()
-    For ($i=$folderPaths.Length-1; $i -ge 0; $i--) {
+    For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
         $currentFolderPath = $folderPaths[$i]
-        $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
-        $currentFolderName = Split-Path -Path $currentFolderPath -Leaf        
-        $encryptedOriginalName = Encrypt-FileName -FileName $currentFolderName -Key $Key
+        $parentFolderPath = Split-Path -Path $currentFolderPath -Parent        
         $newFolderName = "$($i)".Trim()
         $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
-        $newRelativePath = $newPathName.Replace($FolderPath,"")
-        $relativePath = $currentFolderPath.Replace($FolderPath,"")
+        $newRelativePath = $newPathName.Replace($FolderPath, "")
+        $relativePath = $currentFolderPath.Replace($FolderPath, "")
         Write-Host "Renaming folder [$relativePath] to [$newRelativePath]"
         $manifest += $(Encrypt-AES -PlainText $relativePath -Key $Key -KeySize 128)
     }
@@ -238,11 +239,10 @@ function Hide-Folder {
 
 
     $json = ConvertTo-Json -InputObject $manifest
-    if(!$simulate)
-    {
-        Set-Content -Path $($FolderPath+"\manifest.json") -Value $json -Encoding UTF8
+    if (!$simulate) {
+        Set-Content -Path $($FolderPath + "\manifest.json") -Value $json -Encoding UTF8
 
-        For ($i=$folderPaths.Length-1; $i -ge 0; $i--) {
+        For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
             $currentFolderPath = $folderPaths[$i]
             $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
             $newFolderName = "$($i)".Trim()
@@ -273,8 +273,7 @@ function Unhide-Folder {
     $jsonObject = ConvertFrom-Json $jsonContent
 
     $i = 0
-    foreach ($encPath in $jsonObject)
-    {
+    foreach ($encPath in $jsonObject) {
         $recoveredFolderPathRelative = Decrypt-AES -EncryptedText $encPath -Key $Key -KeySize 128
         $recoveredFolderPath = Join-Path -Path $FolderPath -ChildPath $recoveredFolderPathRelative
         $recoveredFolderName = Split-Path -Path $recoveredFolderPath -Leaf
@@ -283,12 +282,12 @@ function Unhide-Folder {
         $i++
         Write-Host "[$existingFolderPath] -->  [$recoveredFolderPath]"
         
-        if(!$simulate){
+        if (!$simulate) {
             Rename-Item -Path $existingFolderPath -NewName $recoveredFolderName 
         }
     }
 
-    if(!$simulate){
+    if (!$simulate) {
         Remove-Item -Path $($FolderPath + "\manifest.json") -Force         
     }    
 }
@@ -329,6 +328,8 @@ function Unhide-Path {
         [switch]$simulate
     )
 
+    Unhide-Folder -FolderPath $Path -Key $Key -simulate:$simulate
+
     # Get all files in the directory tree
     $files = Get-ChildItem -Path $Path -File -Recurse
 
@@ -339,5 +340,5 @@ function Unhide-Path {
         Unhide-File -FilePath $filePath -Key $Key -simulate:$simulate
     }
 
-    Unhide-Folder -FolderPath $Path -Key $Key -simulate:$simulate
+    
 }
