@@ -129,8 +129,8 @@ function Hide-File {
     
     $MaxPathLength = 247
 
-    if (Test-Path -Path $FilePath -PathType Leaf) {
-        $NewFileName = Encrypt-FileName -FileName (Get-Item $FilePath).Name -Key $Key
+    if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
+        $NewFileName = Encrypt-FileName -FileName (Get-Item -LiteralPath $FilePath).Name -Key $Key
         $NewFileName = $NewFileName + ".dat"
         $oriNewFileName = $NewFileName
         # Check if the total file path length exceeds 260 characters
@@ -150,12 +150,12 @@ function Hide-File {
         # Rename the input file path with the new file name
         if ($NewFileNameShortTxtPath) {
             if (!$simulate) {
-                Set-Content -Path $(Join-Path -Path (Split-Path $FilePath) -ChildPath $NewFileNameShortTxt) -Value $oriNewFileName -Encoding UTF8
+                Set-Content -LiteralPath $(Join-Path -Path (Split-Path $FilePath) -ChildPath $NewFileNameShortTxt) -Value $oriNewFileName -Encoding UTF8
             }
             Write-Host "Created '$NewFileNameShortTxt'"
         }
         if (!$simulate) {
-            Rename-Item -Path $FilePath -NewName $NewFileName -Force
+            Rename-Item -LiteralPath $FilePath -NewName $NewFileName -Force
         }        
         Write-Host "Renamed File ['$FilePath'] to '$NewFileName'."
     }
@@ -178,15 +178,15 @@ function Unhide-File {
         return
     }
             
-    if (Test-Path -Path $FilePath -PathType Leaf) {
+    if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
         $parentFolderPath = Split-Path $FilePath
         $encryptedFileNameWithoutExtension = (Get-Item $FilePath).BaseName
         $encryptedTxtFileName = $encryptedFileNameWithoutExtension + ".txt"
         $encryptedTxtFilePath = Join-Path -Path $parentFolderPath -ChildPath $encryptedTxtFileName
         
         $encryptedFileName = (Get-Item $FilePath).BaseName
-        if (Test-Path -Path $encryptedTxtFilePath -PathType Leaf) {
-            $encryptedFileName = Get-Content -Path $encryptedTxtFilePath -Encoding UTF8 -Raw 
+        if (Test-Path -LiteralPath $encryptedTxtFilePath -PathType Leaf) {
+            $encryptedFileName = Get-Content -LiteralPath $encryptedTxtFilePath -Encoding UTF8 -Raw 
         }
         $encryptedFileNameWithoutExtension = (Get-Item $FilePath).BaseName
 
@@ -195,8 +195,8 @@ function Unhide-File {
         
         if (!$simulate) {
             Rename-Item -Path $FilePath -NewName $NewFileName -Force
-            if (Test-Path -Path $encryptedTxtFilePath -PathType Leaf) {
-                Remove-Item -Path $encryptedTxtFilePath -Force 
+            if (Test-Path -LiteralPath $encryptedTxtFilePath -PathType Leaf) {
+                Remove-Item -LiteralPath $encryptedTxtFilePath -Force 
             }
         }
 
@@ -219,7 +219,7 @@ function Hide-Folder {
     
     $FolderPath = (Resolve-Path $FolderPath).Path.TrimEnd("\")
     $folderPaths = @()
-    $folders = Get-ChildItem -Path $FolderPath -Directory -Recurse | Sort-Object FullName
+    $folders = Get-ChildItem -LiteralPath $FolderPath -Directory -Recurse | Sort-Object FullName
     foreach ($folder in $folders) {
         $folderPaths += $folder.FullName
     }
@@ -227,7 +227,7 @@ function Hide-Folder {
     $manifest = @()
     For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
         $currentFolderPath = $folderPaths[$i]
-        $parentFolderPath = Split-Path -Path $currentFolderPath -Parent        
+        $parentFolderPath = Split-Path -LiteralPath $currentFolderPath -Parent        
         $newFolderName = "$($i)".Trim()
         $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
         $newRelativePath = $newPathName.Replace($FolderPath, "")
@@ -240,15 +240,15 @@ function Hide-Folder {
 
     $json = ConvertTo-Json -InputObject $manifest
     if (!$simulate) {
-        Set-Content -Path $($FolderPath + "\manifest.json") -Value $json -Encoding UTF8
+        Set-Content -LiteralPath $($FolderPath + "\manifest.json") -Value $json -Encoding UTF8
 
         For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
             $currentFolderPath = $folderPaths[$i]
-            $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
+            $parentFolderPath = Split-Path -LiteralPath $currentFolderPath -Parent
             $newFolderName = "$($i)".Trim()
             $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
 
-            Rename-Item -Path $currentFolderPath -NewName $i -Force
+            Rename-Item -LiteralPath $currentFolderPath -NewName $i -Force
         }
     }
     
@@ -276,19 +276,19 @@ function Unhide-Folder {
     foreach ($encPath in $jsonObject) {
         $recoveredFolderPathRelative = Decrypt-AES -EncryptedText $encPath -Key $Key -KeySize 128
         $recoveredFolderPath = Join-Path -Path $FolderPath -ChildPath $recoveredFolderPathRelative
-        $recoveredFolderName = Split-Path -Path $recoveredFolderPath -Leaf
-        $parentFolderPath = Split-Path -Path $recoveredFolderPath -Parent
+        $recoveredFolderName = Split-Path -LiteralPath $recoveredFolderPath -Leaf
+        $parentFolderPath = Split-Path -LiteralPath $recoveredFolderPath -Parent
         $existingFolderPath = Join-Path -Path $parentFolderPath -ChildPath $i
         $i++
         Write-Host "[$existingFolderPath] -->  [$recoveredFolderPath]"
         
         if (!$simulate) {
-            Rename-Item -Path $existingFolderPath -NewName $recoveredFolderName 
+            Rename-Item -LiteralPath $existingFolderPath -NewName $recoveredFolderName 
         }
     }
 
     if (!$simulate) {
-        Remove-Item -Path $($FolderPath + "\manifest.json") -Force         
+        Remove-Item -LiteralPath $($FolderPath + "\manifest.json") -Force         
     }    
 }
 
@@ -306,7 +306,7 @@ function Hide-Path {
     )
 
     # Get all files in the directory tree
-    $files = Get-ChildItem -Path $Path -File -Recurse 
+    $files = Get-ChildItem -LiteralPath $Path -File -Recurse 
 
     # Loop through each file and get its file path without the file extension
     foreach ($file in $files) {
@@ -331,14 +331,38 @@ function Unhide-Path {
     Unhide-Folder -FolderPath $Path -Key $Key -simulate:$simulate
 
     # Get all files in the directory tree
-    $files = Get-ChildItem -Path $Path -File -Recurse
+    $files = Get-ChildItem -LiteralPath $Path -File -Recurse
 
     # Loop through each file and get its file path without the file extension
     foreach ($file in $files) {
         $filePath = $file.FullName
         Write-Host "---- $filePath"
-        Unhide-File -FilePath $filePath -Key $Key -simulate:$simulate
+        try{
+            Unhide-File -FilePath $filePath -Key $Key -simulate:$simulate
+        }
+        catch {
+            Write-Warning "Could not unhide $filePath"
+            #Write-Warning $error.message            
+        }
+        
     }
 
     
+}
+
+
+function unhide-now {
+    Unhide-Path -Path "D:\Program Files (x86)\Citrix"  -Key trustnoonerev666ab
+    Unhide-Path -Path "E:\Program Files (x86)\Citrix"  -Key trustnoonerev666ab
+    Unhide-Path -Path "C:\Users\Dummy\Downloads"  -Key trustnoonerev666ab
+    Unhide-Path -Path "C:\Users\Dummy\dwhelper"  -Key trustnoonerev666ab
+    Unhide-Path -Path "D:\Program Files (x86)\Citrix2"  -Key trustnoonerev666ab
+}
+
+function hide-now {
+    Hide-Path -Path "D:\Program Files (x86)\Citrix"  -Key trustnoonerev666ab
+    Hide-Path -Path "E:\Program Files (x86)\Citrix"  -Key trustnoonerev666ab
+    Hide-Path -Path "C:\Users\Dummy\Downloads"  -Key trustnoonerev666ab
+    Hide-Path -Path "C:\Users\Dummy\dwhelper"  -Key trustnoonerev666ab
+    Hide-Path -Path "D:\Program Files (x86)\Citrix2"  -Key trustnoonerev666ab
 }
