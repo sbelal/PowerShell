@@ -227,7 +227,7 @@ function Hide-Folder {
     $manifest = @()
     For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
         $currentFolderPath = $folderPaths[$i]
-        $parentFolderPath = Split-Path -LiteralPath $currentFolderPath -Parent        
+        $parentFolderPath = Split-Path -Path $currentFolderPath -Parent        
         $newFolderName = "$($i)".Trim()
         $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
         $newRelativePath = $newPathName.Replace($FolderPath, "")
@@ -244,7 +244,7 @@ function Hide-Folder {
 
         For ($i = $folderPaths.Length - 1; $i -ge 0; $i--) {
             $currentFolderPath = $folderPaths[$i]
-            $parentFolderPath = Split-Path -LiteralPath $currentFolderPath -Parent
+            $parentFolderPath = Split-Path -Path $currentFolderPath -Parent
             $newFolderName = "$($i)".Trim()
             $newPathName = Join-Path -Path $parentFolderPath -ChildPath $newFolderName
 
@@ -276,8 +276,8 @@ function Unhide-Folder {
     foreach ($encPath in $jsonObject) {
         $recoveredFolderPathRelative = Decrypt-AES -EncryptedText $encPath -Key $Key -KeySize 128
         $recoveredFolderPath = Join-Path -Path $FolderPath -ChildPath $recoveredFolderPathRelative
-        $recoveredFolderName = Split-Path -LiteralPath $recoveredFolderPath -Leaf
-        $parentFolderPath = Split-Path -LiteralPath $recoveredFolderPath -Parent
+        $recoveredFolderName = Split-Path -Path $recoveredFolderPath -Leaf
+        $parentFolderPath = Split-Path -Path $recoveredFolderPath -Parent
         $existingFolderPath = Join-Path -Path $parentFolderPath -ChildPath $i
         $i++
         Write-Host "[$existingFolderPath] -->  [$recoveredFolderPath]"
